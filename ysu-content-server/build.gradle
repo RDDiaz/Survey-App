@@ -1,0 +1,116 @@
+buildscript {
+	ext {
+		springBootVersion = '1.4.1.RELEASE'
+	}
+	repositories {
+		mavenCentral()
+		jcenter()
+	}
+	dependencies {
+		classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+		classpath('nu.studer:gradle-jooq-plugin:1.0.6')
+		classpath('org.postgresql:postgresql:9.4-1200-jdbc41')
+		classpath('org.slf4j:slf4j-api:1.7.2')
+	}
+}
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'war'
+apply plugin: 'spring-boot'
+apply plugin: 'nu.studer.jooq'
+
+apply plugin: 'application'
+mainClassName = 'edu.ysu.content.server.ContentServerApplication'
+
+war
+{
+	baseName = rootProject.name
+	version = "1.0.0"
+	archiveName = rootProject.name + ".war"
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+	mavenCentral()
+	jcenter()
+}
+
+dependencies {
+	compile('org.springframework.boot:spring-boot-starter-jooq')
+	runtime('org.postgresql:postgresql:9.4-1200-jdbc41')
+	compile('com.zaxxer:HikariCP:2.4.7')
+	compile('org.springframework.boot:spring-boot-starter-web-services')
+	compile('com.fasterxml.uuid:java-uuid-generator:3.1.4')
+	compile('org.flywaydb:flyway-core:4.0.3')
+	compile('org.projectlombok:lombok:1.16.10')
+	compile('org.apache.commons:commons-lang3:3.5')
+	providedRuntime('org.springframework.boot:spring-boot-starter-tomcat')
+
+	testCompile('org.springframework.boot:spring-boot-starter-test')
+}
+
+configurations {
+	providedRuntime
+	runtime.exclude group: 'org.slf4j', module: 'slf4j-simple'
+}
+
+jooq {
+	java(sourceSets.main) {
+		jdbc {
+			driver = 'org.postgresql.Driver'
+			url = 'jdbc:postgresql://localhost:5432/content'
+			user = 'postgres'
+			password = 'ttech123'
+			properties {
+				property {
+					key = 'ssl'
+					value = 'false'
+				}
+			}
+		}
+		generator {
+			name = 'org.jooq.util.DefaultGenerator'
+			strategy {
+				name = 'org.jooq.util.DefaultGeneratorStrategy'
+			}
+			database {
+				name = 'org.jooq.util.postgres.PostgresDatabase'
+				inputSchema = 'public'
+				excludes = 'schema_version'
+				forcedTypes {
+					forcedType {
+						name = 'BOOLEAN'
+						expression = 'IS_CORRECT'
+					}
+				}
+			}
+			generate {
+				deprecated = false
+				records = false
+				pojos = true
+				fluentSetters = true
+			}
+			target {
+				packageName = 'jooq'
+				directory = 'src/main/java/generated/'
+			}
+		}
+	}
+}
+
+task('jooqCleanup') {
+	doLast {
+		project.file('src/main/java/generated/jooq').deleteDir()
+	}
+}
+
+generateJavaJooqSchemaSource.dependsOn 'jooqCleanup'
+
+compileJava {
+	//This prevents the jooq data model from being generated automatically every time gradle
+	//compiles java code.
+	compileJava.taskDependencies.values -= "generateJavaJooqSchemaSource"
+}
